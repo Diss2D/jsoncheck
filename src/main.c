@@ -102,16 +102,28 @@ int main(int argc, char *argv[]) {
     if (text == NULL) {
         return 1;
     }
-    size_t error_offset = 0;
 
+    size_t error_offset = 0;
     bool valid = jsoncheck_validate(text, &error_offset);
-    free(text);
+
     if (!valid) {
-        fprintf(stderr, "Invalid JSON at byte offset %zu\n", error_offset);
+        size_t line = 1;
+        size_t column = 1;
+
+        jsoncheck_error_location(text, error_offset, &line, &column);
+
+        fprintf(stderr,
+                "Invalid JSON at line %zu, column %zu "
+                "(byte offset %zu)\n",
+                line,
+                column,
+                error_offset);
+
+        free(text);
         return 1;
     }
 
+    free(text);
     printf("JSON is valid\n");
-
     return 0;
 }
