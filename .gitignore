@@ -1,0 +1,19 @@
+# Build directories
+/build/
+/dist/
+
+# Compiled files
+*.o
+*.obj
+*.a
+*.so
+*.exe
+*.out
+*.deb
+
+# IDE settings
+.vscode/
+.idea/
+
+# Temporary files
+*~
