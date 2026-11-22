@@ -1,0 +1,94 @@
+.TH JSONCHECK 1 "November 2026" "jsoncheck" "User Commands"
+
+.SH NAME
+jsoncheck \- JSON syntax validator and formatter
+
+.SH SYNOPSIS
+.B jsoncheck validate
+.I file
+
+.B jsoncheck format
+.RB [ \-\-pretty | \-\-compact ]
+.I file
+
+.B jsoncheck \-\-help
+
+.B jsoncheck \-\-version
+
+.SH DESCRIPTION
+jsoncheck is a command-line utility for validating and
+formatting JSON documents using the cJSON library.
+
+.SH COMMANDS
+.TP
+.B validate
+Check the syntax of a JSON file. If the document is invalid,
+report the line, column and byte offset of the error.
+
+.TP
+.B format
+Validate and print a formatted JSON document to standard output.
+
+.SH OPTIONS
+.TP
+.B \-\-pretty
+Print JSON with indentation and line breaks.
+
+.TP
+.B \-\-compact
+Print JSON without unnecessary whitespace.
+
+.TP
+.B \-\-help
+Display help information.
+
+.TP
+.B \-\-version
+Display the program version.
+
+.SH CONFIGURATION
+The configuration file is located at:
+
+.I /etc/jsoncheck/jsoncheck.conf
+
+Supported values:
+
+.B format=pretty
+
+.B format=compact
+
+The default mode is pretty. Missing configuration files are
+ignored. Command-line format options take precedence over
+configuration settings.
+
+.SH EXIT STATUS
+.TP
+.B 0
+Successful execution.
+
+.TP
+.B 1
+Invalid JSON, file error or configuration error.
+
+.TP
+.B 2
+Invalid command-line arguments.
+
+.SH EXAMPLES
+Validate a JSON file:
+
+.B jsoncheck validate example.json
+
+Print formatted JSON:
+
+.B jsoncheck format example.json
+
+Print compact JSON:
+
+.B jsoncheck format \-\-compact example.json
+
+.SH AUTHOR
+Diss2D
+
+.SH LICENSE
+MIT License.

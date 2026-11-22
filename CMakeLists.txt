@@ -29,3 +29,53 @@ target_compile_definitions(jsoncheck PRIVATE
     APP_VERSION="${PROJECT_VERSION}"
 )
 target_link_libraries(jsoncheck PRIVATE jsoncore)
+
+# Установка исполняемого файла
+install(TARGETS jsoncheck
+    RUNTIME DESTINATION bin
+)
+
+# Установка конфигурационного файла
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/packaging/jsoncheck.conf"
+    DESTINATION /etc/jsoncheck
+)
+
+#Подготовка сжатой истории изменений
+find_program(GZIP_EXECUTABLE gzip REQUIRED)
+
+execute_process(
+    COMMAND "${GZIP_EXECUTABLE}" -9n -c
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/changelog"
+    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/changelog.gz"
+    RESULT_VARIABLE GZIP_RESULT
+)
+
+if(NOT GZIP_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to compress changelog")
+endif()
+
+# Установка документации
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/packaging/copyright"
+    "${CMAKE_CURRENT_BINARY_DIR}/changelog.gz"
+    DESTINATION share/doc/jsoncheck
+)
+
+# Cправочная страница man
+execute_process(
+    COMMAND "${GZIP_EXECUTABLE}" -9n -c
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/jsoncheck.1"
+    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/jsoncheck.1.gz"
+    RESULT_VARIABLE MAN_GZIP_RESULT
+)
+
+if(NOT MAN_GZIP_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to compress manual page")
+endif()
+
+# Установка справочной страницы
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/jsoncheck.1.gz"
+    DESTINATION share/man/man1
+)

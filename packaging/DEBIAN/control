@@ -1,0 +1,10 @@
+Package: jsoncheck
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Depends: @DEPENDS@
+Maintainer: Diss2D <126177961+Diss2D@users.noreply.github.com>
+Description: JSON syntax validator and formatter
+ Validates JSON documents and reports syntax error positions.
+ Supports pretty and compact JSON formatting.
