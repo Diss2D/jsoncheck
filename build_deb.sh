@@ -5,6 +5,18 @@ cd "$(dirname "$0")"
 
 NAME=jsoncheck
 VERSION=$(cat VERSION)
+
+# Проверка соответствия версии Git-тегу при выпуске
+case "${GITHUB_REF:-}" in
+    refs/tags/v*)
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+
+        if [ "$VERSION" != "$TAG_VERSION" ]; then
+            echo "Version mismatch: VERSION=$VERSION, tag=v$TAG_VERSION" >&2
+            exit 1
+        fi
+        ;;
+esac
 ARCH=$(dpkg --print-architecture)
 
 ROOT="build/pkg/${NAME}_${VERSION}_${ARCH}"
