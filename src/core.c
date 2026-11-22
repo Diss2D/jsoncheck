@@ -46,7 +46,7 @@ void jsoncheck_error_location(const char *text, size_t error_offset, size_t *lin
     }
 }
 
-char *jsoncheck_format(const char *text) {
+char *jsoncheck_format(const char *text, bool pretty) {
     if (text == NULL) {
         return NULL;
     }
@@ -54,7 +54,9 @@ char *jsoncheck_format(const char *text) {
     if (document == NULL) {
         return NULL;
     }
-    char *formatted = cJSON_Print(document);
+
+    char *formatted = pretty ? cJSON_Print(document) : cJSON_PrintUnformatted(document);
+
     cJSON_Delete(document);
 
     return formatted;
