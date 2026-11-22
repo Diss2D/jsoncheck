@@ -30,6 +30,31 @@ target_compile_definitions(jsoncheck PRIVATE
 )
 target_link_libraries(jsoncheck PRIVATE jsoncore)
 
+# Автоматизированное тестирование
+include(CTest)
+
+if(BUILD_TESTING)
+    add_executable(test_core tests/test_core.c)
+
+    target_link_libraries(test_core PRIVATE jsoncore)
+
+    add_test(NAME core COMMAND test_core)
+
+    # Проверка версии программы
+    add_test(NAME cli_version COMMAND jsoncheck --version)
+
+    set_tests_properties(cli_version PROPERTIES
+        PASS_REGULAR_EXPRESSION "jsoncheck ${PROJECT_VERSION}"
+    )
+
+    # Проверка неизвестного аргумента
+    add_test(NAME cli_bad_args COMMAND jsoncheck --no-such-option)
+
+    set_tests_properties(cli_bad_args PROPERTIES
+        WILL_FAIL TRUE
+    )
+endif()
+
 # Установка исполняемого файла
 install(TARGETS jsoncheck
     RUNTIME DESTINATION bin

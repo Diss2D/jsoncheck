@@ -19,7 +19,8 @@ rm -rf build/release "$ROOT"
 
 cmake -S . -B build/release \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=OFF
 
 cmake --build build/release
 
