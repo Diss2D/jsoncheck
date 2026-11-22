@@ -5,3 +5,4 @@ libcjson-dev
 dpkg-dev
 lintian
 gcovr
+cppcheck

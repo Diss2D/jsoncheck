@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Получение исходного кода
+        uses: actions/checkout@v7
+      - name: Установка зависимостей
+        run: |
+          sudo apt-get update
+          xargs -a build-deps.txt sudo apt-get install -y
+      - name: Конфигурация CMake
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_FLAGS=-Werror
+          -DBUILD_TESTING=OFF
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Сборка программы
+        run: cmake --build build
+      - name: Статический анализ
+        run: >
+          cppcheck
+          --project=build/compile_commands.json
+          --enable=warning,style,performance
+          --error-exitcode=1 -q
+
+  test:
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Получение исходного кода
+        uses: actions/checkout@v7
+
+      - name: Установка зависимостей
+        run: |
+          sudo apt-get update
+          xargs -a build-deps.txt sudo apt-get install -y
+
+      - name: Конфигурация тестовой сборки
+        run: |
+          cmake -S . -B build/test \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTING=ON \
+            "-DCMAKE_C_FLAGS=--coverage -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            "-DCMAKE_EXE_LINKER_FLAGS=--coverage -fsanitize=address,undefined"
+
+      - name: Сборка тестов
+        run: cmake --build build/test
+
+      - name: Запуск тестов CTest
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build/test --output-on-failure --output-junit junit.xml
+
+      - name: Проверка покрытия кода
+        run: gcovr --root . --filter src/core.c --fail-under-line 70 build/test
+
+      - name: Сохранение отчета тестирования
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-report
+          path: build/test/junit.xml
+          if-no-files-found: warn
+
+  package:
+    needs: test
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Получение исходного кода
+        uses: actions/checkout@v7
+
+      - name: Установка зависимостей
+        run: |
+          sudo apt-get update
+          xargs -a build-deps.txt sudo apt-get install -y
+
+      - name: Сборка Debian-пакета
+        run: ./build_deb.sh
+
+      - name: Проверка пакета lintian
+        run: lintian --fail-on error dist/*.deb
+
+      - name: Сохранение Debian-пакета
+        uses: actions/upload-artifact@v7
+        with:
+          name: deb
+          path: dist/*.deb
+          if-no-files-found: error
