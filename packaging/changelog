@@ -1,0 +1,12 @@
+jsoncheck (0.1.0) unstable; urgency=medium
+
+  * Initial release.
+  * Added JSON syntax validation using cJSON.
+  * Added line, column and byte offset error reporting.
+  * Added pretty and compact JSON formatting.
+  * Added command-line options --pretty and --compact.
+  * Added support for /etc/jsoncheck/jsoncheck.conf.
+  * Added --help and --version commands.
+  * Added CMake build and Debian package support.
+
+ -- Diss2D <126177961+Diss2D@users.noreply.github.com>  Sun, 22 Nov 2026 21:23:00 +0300
