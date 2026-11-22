@@ -102,8 +102,84 @@ format=pretty
 
 Конфигурационный файл будет автоматически устанавливаться в `/etc/jsoncheck/` при установке deb-пакета.
 
+## Сборка deb-пакета
+
+Для сборки установочного пакета необходима Ubuntu 24.04 LTS.
+
+Установка зависимостей сборки:
+
+```bash
+sudo apt update
+xargs -a build-deps.txt sudo apt install -y
+```
+
+Сборка deb-пакета:
+
+```bash
+./build_deb.sh
+```
+
+Сценарий выполняет выпускную сборку программы через CMake,
+определяет зависимости с помощью dpkg-shlibdeps
+и создаёт установочный пакет в каталоге `dist/`.
+
+Проверка пакета:
+
+```bash
+lintian dist/*.deb
+```
+
 ## Установка
-Инструкция по установке deb потом.
+
+Установка пакета в Ubuntu:
+
+```bash
+sudo apt install ./dist/jsoncheck_0.1.0_amd64.deb
+```
+
+Необходимые библиотеки времени выполнения устанавливаются
+автоматически через apt.
+
+Проверка установленной программы:
+
+```bash
+jsoncheck --version
+jsoncheck --help
+man jsoncheck
+```
+
+Проверка синтаксиса JSON:
+
+```bash
+jsoncheck validate example.json
+```
+
+Форматирование JSON:
+
+```bash
+jsoncheck format example.json
+jsoncheck format --compact example.json
+```
+
+Исполняемый файл устанавливается в `/usr/bin/jsoncheck`,
+а конфигурация — в `/etc/jsoncheck/jsoncheck.conf`.
+
+Удаление программы с сохранением конфигурации:
+
+```bash
+sudo apt remove jsoncheck
+```
+
+Полное удаление программы и конфигурации:
+
+```bash
+sudo apt purge jsoncheck
+```
+
+## Лицензия
+
+Проект распространяется под лицензией MIT.
+Полный текст находится в файле [LICENSE](LICENSE).
 
 ## Практические работы
 - ПР №1: создание программы и deb-пакета (в работе).
