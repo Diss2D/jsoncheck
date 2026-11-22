@@ -45,3 +45,21 @@ void jsoncheck_error_location(const char *text, size_t error_offset, size_t *lin
         *column = current_column;
     }
 }
+
+char *jsoncheck_format(const char *text) {
+    if (text == NULL) {
+        return NULL;
+    }
+    cJSON *document = cJSON_ParseWithOpts(text, NULL, 1);
+    if (document == NULL) {
+        return NULL;
+    }
+    char *formatted = cJSON_Print(document);
+    cJSON_Delete(document);
+
+    return formatted;
+}
+
+void jsoncheck_free(char *text) {
+    cJSON_free(text);
+}

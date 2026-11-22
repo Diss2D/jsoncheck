@@ -10,15 +10,17 @@
 
 static void print_help(FILE *stream) {
     fprintf(stream,
-            "jsoncheck - JSON validator\n"
+            "jsoncheck - JSON validator and formatter\n"
             "\n"
             "Usage:\n"
             "  jsoncheck validate <file>\n"
+            "  jsoncheck format <file>\n"
             "  jsoncheck --help\n"
             "  jsoncheck --version\n"
             "\n"
             "Commands:\n"
-            "  validate    Check JSON syntax\n");
+            "  validate    Check JSON syntax\n"
+            "  format      Print formatted JSON\n");
 }
 
 static char *read_file(const char *path) {
@@ -92,7 +94,8 @@ int main(int argc, char *argv[]) {
         printf("jsoncheck %s\n", APP_VERSION);
         return 0;
     }
-    if (argc != 3 || strcmp(argv[1], "validate") != 0) {
+
+    if (argc != 3 || (strcmp(argv[1], "validate") != 0 && strcmp(argv[1], "format") != 0)) {
         print_help(stderr);
         return 2;
     }
@@ -123,7 +126,27 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    if (strcmp(argv[1], "validate") == 0) {
+        free(text);
+        printf("JSON is valid\n");
+        return 0;
+    }
+
+    char *formatted = jsoncheck_format(text);
     free(text);
-    printf("JSON is valid\n");
+
+    if (formatted == NULL) {
+        fprintf(stderr, "Cannot format JSON\n");
+        return 1;
+    }
+
+    int printed = printf("%s\n", formatted);
+    jsoncheck_free(formatted);
+
+    if (printed < 0) {
+        fprintf(stderr, "Cannot write formatted JSON\n");
+        return 1;
+    }
+
     return 0;
 }
