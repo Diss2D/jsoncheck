@@ -6,3 +6,4 @@ dpkg-dev
 lintian
 gcovr
 cppcheck
+libmicrohttpd-dev
