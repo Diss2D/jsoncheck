@@ -236,6 +236,69 @@ curl -H "X-Api-Token: local-test" \
 Сервер корректно обрабатывает SIGINT и SIGTERM,
 завершая работу с кодом 0.
 
+### Контейнеризация Docker
+
+Для ПР №3 подготовлен Docker-образ на основе Ubuntu 24.04.
+
+Образ устанавливает готовый Debian-пакет jsoncheck и его
+зависимости через apt, повторная компиляция программы
+внутри Docker не выполняется.
+
+Сборка Debian-пакета:
+
+```bash
+./build_deb.sh
+```
+
+Сборка Docker-образа:
+
+```bash
+sudo docker build \
+  --build-arg APP_VERSION="$(cat VERSION)" \
+  -t jsoncheck:local .
+```
+
+Запуск контейнера:
+
+```bash
+sudo docker run -d \
+  --name jsoncheck-test \
+  -p 8080:8080 \
+  -e APP_API_TOKEN=local-test \
+  jsoncheck:local
+```
+
+Проверка работоспособности:
+
+```bash
+curl http://localhost:8080/health
+sudo docker ps
+sudo docker logs jsoncheck-test
+```
+
+Программа работает от непривилегированного пользователя
+с UID 10001. Docker автоматически проверяет адрес
+/health через HEALTHCHECK.
+
+Остановка контейнера:
+
+```bash
+sudo docker stop --timeout 3 jsoncheck-test
+```
+
+Удаление остановленного контейнера:
+
+```bash
+sudo docker rm jsoncheck-test
+```
+
+Размер локального образа по выводу Docker:
+127 МБ использования диска, 32,4 МБ содержимого.
+
+Образ проверен локально: HTTP API, автоматическая
+проверка работоспособности, запуск без прав root,
+корректное завершение по SIGTERM и повторный запуск.
+
 ## Тестирование и непрерывная интеграция
 
 В практической работе №2 была реализована система
