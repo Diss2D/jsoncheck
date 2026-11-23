@@ -202,9 +202,6 @@ static enum MHD_Result handle_request(void *cls,
                                       size_t *upload_data_size,
                                       void **con_cls) {
     (void)http_version;
-    //(void)upload_data;
-    //(void)upload_data_size;
-    //(void)con_cls;
 
     if (strcmp(url, "/api/validate") == 0 || strcmp(url, "/api/format") == 0) {
         return handle_json_api(connection,
