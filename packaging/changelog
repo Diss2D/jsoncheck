@@ -1,3 +1,13 @@
+jsoncheck (0.2.0) unstable; urgency=medium
+
+  * Added unit and CLI tests using CTest.
+  * Added AddressSanitizer and UndefinedBehaviorSanitizer checks.
+  * Added code coverage verification using gcovr.
+  * Added GitHub Actions CI pipeline.
+  * Added automated GitHub Release creation.
+
+ -- Diss2D <126177961+Diss2D@users.noreply.github.com>  Mon, 23 Nov 2026 03:05:29 +0300
+
 jsoncheck (0.1.0) unstable; urgency=medium
 
   * Initial release.
