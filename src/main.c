@@ -1,4 +1,5 @@
 #include "core.h"
+#include "server.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -16,12 +17,14 @@ static void print_help(FILE *stream) {
             "Usage:\n"
             "  jsoncheck validate <file>\n"
             "  jsoncheck format [--pretty|--compact] <file>\n"
+            "  jsoncheck serve\n"
             "  jsoncheck --help\n"
             "  jsoncheck --version\n"
             "\n"
             "Commands:\n"
             "  validate    Check JSON syntax\n"
             "  format      Print formatted JSON\n"
+            "  serve       Start HTTP server\n"
             "\n"
             "Format options:\n"
             "  --pretty    Print indented JSON (default)\n"
@@ -146,7 +149,9 @@ int main(int argc, char *argv[]) {
         printf("jsoncheck %s\n", APP_VERSION);
         return 0;
     }
-
+    if (argc == 2 && strcmp(argv[1], "serve") == 0) {
+        return jsoncheck_server_run(APP_VERSION);
+    }
     bool pretty = true;
     const char *path = NULL;
 
