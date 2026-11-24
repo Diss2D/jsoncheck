@@ -152,3 +152,75 @@ jobs:
             --verify-tag \
             --title "jsoncheck $RELEASE_TAG" \
             --notes-from-tag
+
+  deploy:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Получение исходного кода
+        uses: actions/checkout@v7
+
+      - name: Скачивание Debian-пакета
+        uses: actions/download-artifact@v8
+        with:
+          name: deb
+          path: dist
+
+      - name: Подготовка имени и тегов образа
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          test -n "$DOCKERHUB_USERNAME"
+
+          APP_VERSION="$(cat VERSION)"
+          test "$GITHUB_REF_NAME" = "v$APP_VERSION"
+
+          echo "IMAGE=$DOCKERHUB_USERNAME/jsoncheck" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+      - name: Сборка Docker-образа
+        run: |
+          docker build \
+            --build-arg APP_VERSION="$APP_VERSION" \
+            -t "$IMAGE:$APP_VERSION" \
+            -t "$IMAGE:$SHORT_SHA" .
+      - name: Smoke-тест контейнера
+        run: |
+          docker run -d \
+            --name jsoncheck-smoke \
+            -p 8080:8080 \
+            -e APP_API_TOKEN=ci \
+            "$IMAGE:$APP_VERSION"
+
+          trap 'docker logs jsoncheck-smoke; docker rm -f jsoncheck-smoke >/dev/null' EXIT
+
+          for attempt in {1..15}; do
+            if curl -fsS http://127.0.0.1:8080/health; then
+              break
+            fi
+
+            if [ "$attempt" -eq 15 ]; then
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          response=$(curl -fsS \
+            -H "X-Api-Token: ci" \
+            --data-binary '{"ok":true}' \
+            http://127.0.0.1:8080/api/validate)
+
+          test "$response" = "JSON is valid"
+
+      - name: Вход в Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Публикация Docker-образа
+        run: |
+          docker push "$IMAGE:$APP_VERSION"
+          docker push "$IMAGE:$SHORT_SHA"
