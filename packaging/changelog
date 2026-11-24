@@ -1,3 +1,10 @@
+jsoncheck (1.0.1) unstable; urgency=medium
+
+  * Added service name to the /version response.
+  * Updated Kubernetes deployment image to version 1.0.1.
+
+ -- Diss2D <126177961+Diss2D@users.noreply.github.com>  Wed, 25 Nov 2026 00:55:21 +0300
+
 jsoncheck (1.0.0) unstable; urgency=medium
 
   * Added Kubernetes deployment manifests.

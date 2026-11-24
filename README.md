@@ -201,7 +201,7 @@ APP_PORT=9090 APP_API_TOKEN=local-test ./build/jsoncheck serve
 |------|---------------|----------------------------|
 | GET  | /health       | Проверка работоспособности |
 | GET  | /ready        | Проверка готовности        |
-| GET  | /version      | Версия и имя хоста         |
+| GET  | /version      | Версия, имя хоста и имя сервиса |
 | POST | /api/validate | Проверка синтаксиса JSON   |
 | POST | /api/format   | Форматирование JSON        |
 
