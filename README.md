@@ -569,6 +569,96 @@ maxUnavailable: 0 и maxSurge: 1.
 При обновлении с версии 1.0.0 до 1.0.1 все 120 HTTP-запросов
 выполнены успешно без ошибок.
 
+### Эксплуатация
+
+Все команды выполняются из корневого каталога проекта.
+
+**Проверка состояния:**
+
+```bash
+kubectl -n jsoncheck get deployments,pods,svc
+kubectl -n jsoncheck get endpointslices
+```
+
+Deployment должен содержать две доступные реплики.
+
+**Балансировка и непрерывная проверка доступности:**
+
+```bash
+kubectl -n jsoncheck run probe --rm -it --restart=Never \
+  --image=diss2d/jsoncheck:1.0.0 --command -- sh -c '
+    while true; do
+      curl -fsS --max-time 3 http://jsoncheck/version || echo "REQUEST FAILED"
+      sleep 0.5
+    done
+  '
+```
+
+Ответы содержат имена разных подов, во время операций сопровождения
+цикл выполняется в отдельном терминале. Остановка — Ctrl+C.
+
+**Самовосстановление:**
+
+```bash
+kubectl -n jsoncheck get pods -l app=jsoncheck
+kubectl -n jsoncheck delete pod <имя-пода>
+```
+
+Удалённый под автоматически заменяется новым.
+
+**Масштабирование:**
+
+```bash
+kubectl -n jsoncheck scale deployment/jsoncheck --replicas=3
+kubectl -n jsoncheck rollout status deployment/jsoncheck
+kubectl -n jsoncheck get pods
+kubectl apply -f k8s/
+```
+
+Количество реплик увеличивается до трёх и возвращается к двум согласно манифесту.
+
+**Обновление и откат:**
+
+```bash
+kubectl apply -f k8s/
+kubectl -n jsoncheck rollout status deployment/jsoncheck
+kubectl -n jsoncheck rollout history deployment/jsoncheck
+kubectl -n jsoncheck rollout undo deployment/jsoncheck
+```
+
+После публикации новой версии и изменения тега образа применение манифеста обновляет приложение, откат восстанавливает предыдущую ревизию.
+
+**Неудачный выпуск:**
+
+```bash
+sed 's|image: diss2d/jsoncheck:.*|image: diss2d/jsoncheck:pr4-nonexistent|' \
+  k8s/deployment.yaml > /tmp/jsoncheck-bad-deployment.yaml
+
+kubectl apply -f /tmp/jsoncheck-bad-deployment.yaml
+kubectl -n jsoncheck rollout status deployment/jsoncheck --timeout=20s
+kubectl -n jsoncheck get pods
+kubectl -n jsoncheck describe pod <имя-проблемного-пода>
+kubectl -n jsoncheck rollout undo deployment/jsoncheck
+kubectl -n jsoncheck rollout status deployment/jsoncheck
+rm /tmp/jsoncheck-bad-deployment.yaml
+```
+
+Новая реплика не запускается (ErrImagePull или ImagePullBackOff), старые продолжают обслуживать запросы.
+
+**Диагностика перезапуска контейнера:**
+
+```bash
+kubectl -n jsoncheck exec <имя-пода> -- sh -c 'kill -TERM 1'
+kubectl -n jsoncheck get pods
+kubectl -n jsoncheck logs <имя-пода> --previous
+kubectl -n jsoncheck logs <имя-пода>
+kubectl -n jsoncheck describe pod <имя-пода>
+  -o jsonpath='{.status.containerStatuses[0].lastState.terminated}{"\n"}'
+kubectl -n jsoncheck get events
+```
+
+После перезапуска контейнера имя пода сохраняется, счётчик RESTARTS увеличивается, при корректном завершении причина — Completed, код выхода — 0.
+
 ## Лицензия
 
 Проект распространяется под лицензией MIT.
