@@ -455,7 +455,7 @@ kubectl get nodes
 
 ### Манифесты
 
-В каталоге `k8s/` расположены:
+В каталоге `k8s/base/` расположены:
 - `namespace.yaml` — пространство имён jsoncheck;
 - `configmap.yaml` — настройки приложения;
 - `deployment.yaml` — развёртывание двух реплик;
@@ -469,7 +469,7 @@ kubectl get nodes
 Создание пространства имён:
 
 ```bash
-kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/base/namespace.yaml
 ```
 
 Создание Secret:
@@ -487,7 +487,7 @@ unset API_TOKEN
 Применение манифестов:
 
 ```bash
-kubectl apply -f k8s/
+kubectl apply -k k8s/base
 
 kubectl -n jsoncheck rollout status \
   deployment/jsoncheck --timeout=180s
@@ -569,6 +569,47 @@ maxUnavailable: 0 и maxSurge: 1.
 При обновлении с версии 1.0.0 до 1.0.1 все 120 HTTP-запросов
 выполнены успешно без ошибок.
 
+### Окружения dev и prod (Kustomize)
+
+Общие манифесты находятся в `k8s/base/`, настройки окружений —
+в `k8s/overlays/dev/` и `k8s/overlays/prod/`.
+
+| Окружение | Namespace | Реплики |
+|---|---|---:|
+| Base | jsoncheck | 2 |
+| Dev | jsoncheck-dev | 1 |
+| Prod | jsoncheck-prod | 2 |
+
+Для каждого окружения создаются отдельные Namespace и Secret:
+
+```bash
+for NS in jsoncheck-dev jsoncheck-prod; do
+  kubectl create namespace "$NS" --save-config
+  read -rsp "API token ($NS): " TOKEN
+  echo
+  kubectl -n "$NS" create secret generic jsoncheck-secret \
+    --from-literal=APP_API_TOKEN="$TOKEN"
+  unset TOKEN
+done
+```
+
+Развёртывание и проверка:
+
+```bash
+kubectl apply -k k8s/overlays/dev
+kubectl apply -k k8s/overlays/prod
+
+for NS in jsoncheck-dev jsoncheck-prod; do
+  kubectl -n "$NS" rollout status deployment/jsoncheck
+  kubectl -n "$NS" get deployments,pods,svc
+  kubectl -n "$NS" exec deployment/jsoncheck -- \
+    curl -fsS http://jsoncheck/health
+done
+```
+
+Окружения используют общие манифесты, но имеют собственные ресурсы,
+количество реплик и токены авторизации.
+
 ### Эксплуатация
 
 Все команды выполняются из корневого каталога проекта.
@@ -612,7 +653,7 @@ kubectl -n jsoncheck delete pod <имя-пода>
 kubectl -n jsoncheck scale deployment/jsoncheck --replicas=3
 kubectl -n jsoncheck rollout status deployment/jsoncheck
 kubectl -n jsoncheck get pods
-kubectl apply -f k8s/
+kubectl apply -k k8s/base
 ```
 
 Количество реплик увеличивается до трёх и возвращается к двум согласно манифесту.
@@ -620,7 +661,7 @@ kubectl apply -f k8s/
 **Обновление и откат:**
 
 ```bash
-kubectl apply -f k8s/
+kubectl apply -k k8s/base
 kubectl -n jsoncheck rollout status deployment/jsoncheck
 kubectl -n jsoncheck rollout history deployment/jsoncheck
 kubectl -n jsoncheck rollout undo deployment/jsoncheck
@@ -632,7 +673,7 @@ kubectl -n jsoncheck rollout undo deployment/jsoncheck
 
 ```bash
 sed 's|image: diss2d/jsoncheck:.*|image: diss2d/jsoncheck:pr4-nonexistent|' \
-  k8s/deployment.yaml > /tmp/jsoncheck-bad-deployment.yaml
+  k8s/base/deployment.yaml > /tmp/jsoncheck-bad-deployment.yaml
 
 kubectl apply -f /tmp/jsoncheck-bad-deployment.yaml
 kubectl -n jsoncheck rollout status deployment/jsoncheck --timeout=20s
@@ -649,10 +690,12 @@ rm /tmp/jsoncheck-bad-deployment.yaml
 
 ```bash
 kubectl -n jsoncheck exec <имя-пода> -- sh -c 'kill -TERM 1'
+kubectl -n jsoncheck wait --for=condition=Ready pod/<имя-пода> --timeout=120s
 kubectl -n jsoncheck get pods
 kubectl -n jsoncheck logs <имя-пода> --previous
 kubectl -n jsoncheck logs <имя-пода>
 kubectl -n jsoncheck describe pod <имя-пода>
+kubectl -n jsoncheck get pod <имя-пода> \
   -o jsonpath='{.status.containerStatuses[0].lastState.terminated}{"\n"}'
 kubectl -n jsoncheck get events
 ```
