@@ -230,7 +230,11 @@ static enum MHD_Result handle_request(void *cls,
         }
         hostname[sizeof(hostname) - 1] = '\0';
 
-        snprintf(body, sizeof(body), "version=%s hostname=%s\n", app_version, hostname);
+        snprintf(body,
+                 sizeof(body),
+                 "version=%s hostname=%s service=jsoncheck\n",
+                 app_version,
+                 hostname);
 
         return send_response(connection, MHD_HTTP_OK, body);
     }

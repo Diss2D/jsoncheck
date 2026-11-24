@@ -22,7 +22,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: app
-          image: diss2d/jsoncheck:1.0.0
+          image: diss2d/jsoncheck:1.0.1
           ports:
             - containerPort: 8080
           envFrom:
