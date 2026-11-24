@@ -1,3 +1,14 @@
+jsoncheck (1.0.0) unstable; urgency=medium
+
+  * Added Kubernetes deployment manifests.
+  * Added ConfigMap and Secret configuration.
+  * Configured readiness and liveness probes.
+  * Configured resource requests and limits.
+  * Added rolling updates and two application replicas.
+  * Added Kubernetes deployment documentation.
+
+ -- Diss2D <126177961+Diss2D@users.noreply.github.com>  Tue, 24 Nov 2026 23:53:35 +0300
+
 jsoncheck (0.3.0) unstable; urgency=medium
 
   * Added HTTP server using libmicrohttpd.

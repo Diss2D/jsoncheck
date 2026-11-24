@@ -134,7 +134,7 @@ lintian dist/*.deb
 Установка пакета в Ubuntu:
 
 ```bash
-sudo apt install ./dist/jsoncheck_0.2.0_amd64.deb
+sudo apt install "./dist/jsoncheck_$(cat VERSION)_$(dpkg --print-architecture).deb"
 ```
 
 Необходимые библиотеки времени выполнения устанавливаются
@@ -371,12 +371,21 @@ sudo docker ps
 
 ### GitHub Actions
 
-Конвейер описан в `.github/workflows/ci.yml` и состоит
-из последовательных этапов:
+Конвейер описан в `.github/workflows/ci.yml` и содержит
+следующие задачи:
+
 1. `build` — сборка с `-Werror` и анализ кода cppcheck.
 2. `test` — запуск CTest с санитайзерами, проверка покрытия.
 3. `package` — сборка deb-пакета и проверка lintian.
-4. `release` — публикация GitHub Release при отправке тега версии.
+4. `release` — публикация GitHub Release с deb-пакетом.
+5. `deploy` — сборка, проверка и публикация Docker-образа.
+
+Задачи build, test и package выполняются последовательно,
+задачи release и deploy зависят от успешного выполнения package.
+
+Публикация релиза выполняется при отправке тега версии
+или ручном запуске конвейера с указанием тега.
+Публикация Docker-образа выполняется только для тегов версии.
 
 Каждый следующий этап зависит от успешного выполнения предыдущего.
 
@@ -412,6 +421,140 @@ GitHub Actions автоматически создаёт GitHub Release
 Страница релизов:
 https://github.com/Diss2D/jsoncheck/releases
 
+## Развёртывание в Kubernetes
+
+Для ПР №4 используется локальный кластер Kubernetes
+на базе kind.
+
+Проверенное окружение:
+- Ubuntu 24.04 LTS (WSL 2);
+- Docker 29.1.3;
+- kind v0.33.0;
+- kubectl v1.37.0.
+
+Инструкции по установке инструментов:
+- https://kind.sigs.k8s.io/docs/user/quick-start/
+- https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
+
+### Создание кластера
+
+```bash
+mkdir -p ~/.kube
+
+sudo kind create cluster --name tsp \
+  --kubeconfig "$HOME/.kube/config" \
+  --wait 5m
+
+sudo chown "$(id -u):$(id -g)" ~/.kube/config
+chmod 600 ~/.kube/config
+
+kubectl get nodes
+```
+
+Узел кластера должен находиться в состоянии Ready.
+
+### Манифесты
+
+В каталоге `k8s/` расположены:
+- `namespace.yaml` — пространство имён jsoncheck;
+- `configmap.yaml` — настройки приложения;
+- `deployment.yaml` — развёртывание двух реплик;
+- `service.yaml` — Service типа ClusterIP.
+
+Приложение получает APP_PORT из ConfigMap,
+а APP_API_TOKEN — из Secret через переменные окружения.
+
+### Развёртывание приложения
+
+Создание пространства имён:
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+```
+
+Создание Secret:
+
+```bash
+read -rsp "API token: " API_TOKEN
+echo
+
+kubectl -n jsoncheck create secret generic jsoncheck-secret \
+  --from-literal=APP_API_TOKEN="$API_TOKEN"
+
+unset API_TOKEN
+```
+
+Применение манифестов:
+
+```bash
+kubectl apply -f k8s/
+
+kubectl -n jsoncheck rollout status \
+  deployment/jsoncheck --timeout=180s
+
+kubectl -n jsoncheck get pods
+kubectl -n jsoncheck get services
+```
+
+Должны появиться две готовые реплики приложения
+в состоянии Running и Service типа ClusterIP.
+
+Для доступа к сервису с локальной машины:
+
+```bash
+kubectl -n jsoncheck port-forward svc/jsoncheck 8080:80
+```
+
+В другом терминале:
+
+```bash
+curl -fsS http://localhost:8080/health
+curl -fsS http://localhost:8080/ready
+curl -fsS http://localhost:8080/version
+```
+
+### Пробы работоспособности
+
+ReadinessProbe проверяет адрес /ready каждые 5 секунд,
+при неуспешной проверке под исключается из маршрутизации
+запросов до восстановления готовности.
+
+LivenessProbe проверяет адрес /health каждые 10 секунд,
+при достижении порога неуспешных проверок Kubernetes
+перезапускает контейнер.
+
+Контейнер работает от непривилегированного пользователя
+с UID 10001. В Deployment задан runAsNonRoot - true.
+
+Используется стратегия RollingUpdate с параметрами
+maxUnavailable: 0 и maxSurge: 1.
+
+### Ресурсы
+
+Потребление ресурсов измерено с помощью docker stats
+на опубликованном образе jsoncheck:0.3.0.
+
+В течение 60 секунд выполнялись запросы к /api/validate
+с JSON-массивом из 10000 элементов размером 58890 байт.
+
+Результаты:
+- успешных запросов: 1119;
+- неуспешных запросов: 0;
+- CPU без нагрузки: 0,00%;
+- CPU под нагрузкой: 3,43–4,19%;
+- память до нагрузки: 3,215 МиБ;
+- максимальное измеренное потребление памяти: 11,37 МиБ.
+
+Для одной реплики выбраны следующие ресурсы:
+
+| Ресурс | Requests | Limits |
+|--------|----------|--------|
+| CPU    | 50m      | 250m   |
+| Память | 32Mi     | 64Mi   |
+
+Значения выбраны с запасом относительно измеренного
+потребления для обработки более интенсивной нагрузки.
+
 ## Лицензия
 
 Проект распространяется под лицензией MIT.
@@ -420,5 +563,5 @@ https://github.com/Diss2D/jsoncheck/releases
 ## Практические работы
 - ПР №1: создание программы и deb-пакета (выполнено).
 - ПР №2: автоматизированное тестирование, CI и релиз программы (выполнено).
-- ПР №3: контейнеризация и публикация Docker-образа (в процессе).
-- ПР №4: развёртывание и сопровождение в Kubernetes (в планах).
+- ПР №3: контейнеризация и публикация Docker-образа (выполнено).
+- ПР №4: развёртывание и сопровождение в Kubernetes (в процессе).

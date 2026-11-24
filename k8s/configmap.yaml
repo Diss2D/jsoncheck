@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jsoncheck-config
+  namespace: jsoncheck
+data:
+  APP_PORT: "8080"
