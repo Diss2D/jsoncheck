@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jsoncheck
+spec:
+  ingressClassName: cloud-provider-kind
+  rules:
+    - host: jsoncheck-dev.test
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jsoncheck
+                port:
+                  number: 80

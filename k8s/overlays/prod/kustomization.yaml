@@ -5,6 +5,7 @@ namespace: jsoncheck-prod
 
 resources:
   - ../../base
+  - ingress.yaml
 
 replicas:
   - name: jsoncheck

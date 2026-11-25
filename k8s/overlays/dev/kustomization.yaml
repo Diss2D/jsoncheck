@@ -5,6 +5,7 @@ namespace: jsoncheck-dev
 
 resources:
   - ../../base
+  - ingress.yaml
 
 replicas:
   - name: jsoncheck
