@@ -6,7 +6,12 @@ namespace: jsoncheck-prod
 resources:
   - ../../base
   - ingress.yaml
+  - hpa.yaml
 
-replicas:
-  - name: jsoncheck
-    count: 2
+patches:
+  - target:
+      kind: Deployment
+      name: jsoncheck
+    patch: |-
+      - op: remove
+        path: /spec/replicas
