@@ -578,7 +578,9 @@ maxUnavailable: 0 и maxSurge: 1.
 |---|---|---:|
 | Base | jsoncheck | 2 |
 | Dev | jsoncheck-dev | 1 |
-| Prod | jsoncheck-prod | 2 |
+| Prod | jsoncheck-prod | 2–5 (HPA) |
+
+Для автоматического масштабирования prod требуется Metrics Server
 
 Для каждого окружения создаются отдельные Namespace и Secret:
 
@@ -672,6 +674,93 @@ done
 окружения без использования kubectl port-forward.
 Проверены валидация, форматирование JSON и раздельная
 авторизация окружений через Ingress.
+
+### Автоматическое масштабирование (HPA)
+
+В окружении prod используется Horizontal Pod Autoscaler
+с масштабированием по загрузке CPU.
+
+| Параметр | Значение |
+|---|---|
+| Минимальное количество реплик | 2 |
+| Максимальное количество реплик | 5 |
+| Целевая загрузка CPU относительно requests | 60% |
+| Окно стабилизации при уменьшении реплик | 60 секунд |
+
+Количество реплик prod определяется HPA, а не статическим
+значением в манифесте Deployment.
+Конфигурации base и dev сохраняют фиксированное количество реплик.
+
+Установка Metrics Server v0.9.1 в локальный kind-кластер:
+
+```bash
+kubectl apply -f \
+  https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.1/components.yaml
+
+kubectl -n kube-system patch deployment metrics-server \
+  --type=json \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+
+kubectl -n kube-system rollout status \
+  deployment/metrics-server --timeout=180s
+
+kubectl wait --for=condition=Available \
+  apiservice/v1beta1.metrics.k8s.io --timeout=180s
+
+kubectl top nodes
+kubectl top pods -A
+```
+
+Параметр `--kubelet-insecure-tls` используется только
+для локального кластера.
+
+При переходе существующего Deployment prod с фиксированного
+количества реплик на HPA необходимо предварительно удалить
+поле `spec.replicas` из последней применённой конфигурации:
+
+```bash
+kubectl -n jsoncheck-prod apply edit-last-applied deployment/jsoncheck
+```
+
+Применение конфигурации и проверка масштабирования:
+
+```bash
+kubectl apply -k k8s/overlays/prod
+kubectl -n jsoncheck-prod get hpa
+kubectl -n jsoncheck-prod describe hpa jsoncheck
+kubectl -n jsoncheck-prod top pods
+```
+
+Наблюдение за автоматическим масштабированием:
+
+```bash
+kubectl -n jsoncheck-prod get hpa -w
+```
+
+При нагрузочном тестировании использовались POST-запросы
+к `/api/validate` через Ingress окружения prod.
+Четыре параллельных потока отправляли JSON размером
+58 890 байт в течение 180 секунд с интервалом 20 мс
+между запросами в каждом потоке.
+
+Результаты эксперимента:
+
+- количество реплик автоматически изменилось: 2 → 4 → 5 → 2;
+- обработано 30 043 запроса;
+- неуспешных запросов: 0;
+- средняя интенсивность: 166,88 запроса/с;
+- после снятия нагрузки восстановлено исходное количество реплик.
+
+События автоматического масштабирования:
+
+```bash
+kubectl -n jsoncheck-prod get events \
+  --field-selector involvedObject.kind=HorizontalPodAutoscaler,involvedObject.name=jsoncheck \
+  --sort-by=.lastTimestamp
+```
+
+События `SuccessfulRescale` подтверждают автоматическое
+увеличение и уменьшение количества реплик.
 
 ### Эксплуатация
 
