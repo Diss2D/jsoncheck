@@ -121,6 +121,142 @@ jobs:
           path: dist/*.deb
           if-no-files-found: error
 
+  kubernetes:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Получение исходного кода
+        uses: actions/checkout@v7
+
+      - name: Скачивание Debian-пакета
+        uses: actions/download-artifact@v8
+        with:
+          name: deb
+          path: dist
+
+      - name: Сборка Docker-образа
+        run: |
+          APP_VERSION="$(cat VERSION)"
+          IMAGE="jsoncheck-ci:$APP_VERSION"
+
+          docker build \
+            --build-arg APP_VERSION="$APP_VERSION" \
+            -t "$IMAGE" .
+
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Установка kind и kubectl
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+
+          curl -fsSL --retry 3 \
+            https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64 \
+            -o "$RUNNER_TEMP/bin/kind"
+
+          curl -fsSL --retry 3 \
+            https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl \
+            -o "$RUNNER_TEMP/bin/kubectl"
+
+          chmod +x "$RUNNER_TEMP/bin/kind" "$RUNNER_TEMP/bin/kubectl"
+
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          echo "KUBECONFIG=$RUNNER_TEMP/jsoncheck-ci.kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Создание временного Kubernetes-кластера
+        run: |
+          kind version
+          kind create cluster --name jsoncheck-ci --wait 180s
+
+          kubectl version
+          kubectl get nodes
+
+      - name: Загрузка Docker-образа в kind
+        run: |
+          kind load docker-image "$IMAGE" --name jsoncheck-ci
+
+      - name: Развертывание приложения
+        run: |
+          kubectl apply -f k8s/base/namespace.yaml
+
+          kubectl -n jsoncheck create secret generic jsoncheck-secret \
+            --from-literal=APP_API_TOKEN=ci
+
+          OVERLAY="$(mktemp -d k8s/.ci-XXXXXX)"
+          trap 'rm -rf "$OVERLAY"' EXIT
+
+          cat > "$OVERLAY/kustomization.yaml" <<EOF
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+            - ../base
+          images:
+            - name: diss2d/jsoncheck
+              newName: jsoncheck-ci
+              newTag: "${IMAGE##*:}"
+          patches:
+            - target:
+                kind: Deployment
+                name: jsoncheck
+              patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: jsoncheck
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: app
+                          imagePullPolicy: Never
+          EOF
+
+          kubectl apply -k "$OVERLAY"
+
+          kubectl -n jsoncheck rollout status \
+            deployment/jsoncheck --timeout=180s
+
+          kubectl -n jsoncheck get deployments,pods,svc
+
+      - name: Проверка health через Kubernetes Service
+        run: |
+          kubectl -n jsoncheck run probe \
+            --image="$IMAGE" \
+            --image-pull-policy=Never \
+            --restart=Never \
+            --command -- sh -ec '
+              response=$(curl -fsS --max-time 10 http://jsoncheck/health)
+              echo "$response"
+              test "$response" = "OK"
+            '
+
+          kubectl -n jsoncheck wait \
+            --for=jsonpath='{.status.phase}'=Succeeded \
+            pod/probe --timeout=90s
+
+          kubectl -n jsoncheck logs probe
+
+          echo "Kubernetes Service health check passed"
+
+      - name: Диагностика при ошибке
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide || true
+          kubectl -n jsoncheck describe pods || true
+          kubectl -n jsoncheck logs -l app=jsoncheck --all-containers=true || true
+          kubectl -n jsoncheck logs probe || true
+          kubectl get events -A --sort-by=.lastTimestamp || true
+
+      - name: Удаление временного Kubernetes-кластера
+        if: always()
+        run: |
+          kind delete cluster --name jsoncheck-ci
+
   release:
     needs: package
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
