@@ -610,6 +610,69 @@ done
 Окружения используют общие манифесты, но имеют собственные ресурсы,
 количество реплик и токены авторизации.
 
+### Доступ через Ingress
+
+Для окружений dev и prod настроен доступ по доменным именам
+через Cloud Provider KIND v0.12.0.
+
+Установка контроллера (Linux amd64):
+
+```bash
+cd /tmp
+
+curl -fL --retry 3 \
+  -o cloud-provider-kind_0.12.0_linux_amd64.tar.gz \
+  https://github.com/kubernetes-sigs/cloud-provider-kind/releases/download/v0.12.0/cloud-provider-kind_0.12.0_linux_amd64.tar.gz
+
+tar -xzf cloud-provider-kind_0.12.0_linux_amd64.tar.gz
+sudo install -m 755 cloud-provider-kind /usr/local/bin/cloud-provider-kind
+```
+
+Запуск контроллера в отдельном терминале:
+
+```bash
+sudo env KUBECONFIG="$HOME/.kube/config" \
+  /usr/local/bin/cloud-provider-kind \
+  --enable-lb-tunnel=false \
+  --enable-lb-port-mapping=false
+```
+
+Для Docker, установленного непосредственно в Ubuntu WSL,
+используется прямой доступ к контейнерам через сетевой мост.
+
+После создания Namespace и Secret применяются манифесты
+окружений из корневого каталога проекта:
+
+```bash
+kubectl apply -k k8s/overlays/dev
+kubectl apply -k k8s/overlays/prod
+kubectl get ingress -A
+```
+
+После назначения IP-адресов Ingress необходимо добавить
+в `/etc/hosts` соответствия адресов доменным именам:
+
+- `jsoncheck-dev.test` — окружение dev;
+- `jsoncheck-prod.test` — окружение prod.
+
+IP-адреса определяются по выводу `kubectl get ingress -A`.
+При их изменении записи в `/etc/hosts` необходимо обновить.
+
+Проверка доступности:
+
+```bash
+for ENV in dev prod; do
+  curl -fsS --noproxy '*' "http://jsoncheck-$ENV.test/health"
+  curl -fsS --noproxy '*' "http://jsoncheck-$ENV.test/ready"
+  curl -fsS --noproxy '*' "http://jsoncheck-$ENV.test/version"
+done
+```
+
+Запросы проходят через Envoy и Service соответствующего
+окружения без использования kubectl port-forward.
+Проверены валидация, форматирование JSON и раздельная
+авторизация окружений через Ingress.
+
 ### Эксплуатация
 
 Все команды выполняются из корневого каталога проекта.
