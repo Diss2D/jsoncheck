@@ -18,7 +18,11 @@ bool jsoncheck_validate(const char *text, size_t *error_offset) {
         return false;
     }
 
-    cJSON_Delete(document);
+    // Демонстрационная ошибка! Память намеренно не освобождается.
+    // cJSON_Delete(document);
+    if (error_offset != NULL) {
+        cJSON_Delete(document);
+    }
     return true;
 }
 
